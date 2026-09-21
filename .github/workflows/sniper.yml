@@ -32,14 +32,20 @@ jobs:
             echo "✅ A cs16-server JA EXISTE! Robô aposentado, missão cumprida."
             exit 0
           fi
+          AD=$(oci iam availability-domain list --compartment-id "$COMPARTMENT" --query 'data[0].name' --raw-output)
+          IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" --operating-system "Canonical Ubuntu" --operating-system-version "24.04 Minimal aarch64" --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
+          SUBNET=$(oci network subnet list --compartment-id "$COMPARTMENT" --display-name "subnet-20260920-1926" --query 'data[0].id' --raw-output)
+          echo "AD: $AD"
+          echo "Imagem: $IMAGE"
+          echo "Subnet: $SUBNET"
           echo "Sem VM ainda. Tentando criar..."
           oci compute instance launch \
-            --availability-domain "DeSR:SA-SAOPAULO-1-AD-1" \
+            --availability-domain "$AD" \
             --compartment-id "$COMPARTMENT" \
             --shape "VM.Standard.A1.Flex" \
             --shape-config '{"ocpus":1,"memoryInGBs":6}' \
-            --image-id "ocid1.image.oc1.sa-saopaulo-1.aaaaaaaizpqpl2y2czfobdx6igjd7j7cwtcb5zegyfgbwhp4jd5j3pea5wq" \
-            --subnet-id "ocid1.subnet.oc1.sa-saopaulo-1.aaaaaaaa5uuxrjga3fm6i53xzwe4j6mjvsy7xkug3ucrmhrrbp44e6j542nwa" \
+            --image-id "$IMAGE" \
+            --subnet-id "$SUBNET" \
             --assign-public-ip true \
             --display-name "cs16-server" \
             --ssh-authorized-keys-file <(echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDOJWViW2oMRadBPiKufT/DQVji2lRvcUu3en/Llxs72y6diBTp0Brnib4wVw7tf4QgK0aUlXDN3VgZdDFi8Vdqj50xU4QiZWzbYDg6vzSR7Q+X0H1e5auxMxSpO3S2FvbRJ7tvRFwaQkWEZ94B+pWOky8p6NkNnzd9Wrr0GAc1MMIuYD6iWfgLYXJmgmDWYvvLfc+lu38VrEglJM4qmZMXN72k8EEXQNbA0eoxUzYO9CT84OVJW+o1Ruc9AU53CzUEYrkCkTthskNnOXspaJdmGJ5+suZGXNVn+ZJHN2sfIB/rOLpUkv6Wlvb6MT1hBG2mG++9ezj8grmRaevFqc0D ssh-key-2026-09-20") \
