@@ -1,4 +1,4 @@
-name: OCI VM Sniper v3
+name: OCI VM Sniper v4
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: oci-sniper
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   snipe:
@@ -29,6 +29,9 @@ jobs:
         shell: bash
         run: |
           COMPARTMENT="$OCI_CLI_TENANCY"
+          AD=$(oci iam availability-domain list --compartment-id "$COMPARTMENT" --query 'data[0].name' --raw-output)
+          IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" --operating-system "Canonical Ubuntu" --operating-system-version "24.04 Minimal aarch64" --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
+          SUBNET=$(oci network subnet list --compartment-id "$COMPARTMENT" --display-name "subnet-20260920-1926" --query 'data[0].id' --raw-output)
           END=$((SECONDS+3300))
           COUNT=0
           while [ $SECONDS -lt $END ]; do
@@ -36,12 +39,9 @@ jobs:
             echo "=== Tentativa $COUNT - $(date -u) ==="
             EXISTING=$(oci compute instance list --compartment-id "$COMPARTMENT" --display-name "cs16-server" --query "data[?\"lifecycle-state\"!='TERMINATED'] | [0].id" --raw-output 2>/dev/null)
             if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-              echo "✅ A cs16-server JA EXISTE! Missao cumprida!"
+              echo "✅ A cs16-server JA EXISTE! Missao cumprida! (relay encerrado)"
               exit 0
             fi
-            AD=$(oci iam availability-domain list --compartment-id "$COMPARTMENT" --query 'data[0].name' --raw-output)
-            IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" --operating-system "Canonical Ubuntu" --operating-system-version "24.04 Minimal aarch64" --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
-            SUBNET=$(oci network subnet list --compartment-id "$COMPARTMENT" --display-name "subnet-20260920-1926" --query 'data[0].id' --raw-output)
             oci compute instance launch \
               --availability-domain "$AD" \
               --compartment-id "$COMPARTMENT" \
@@ -56,4 +56,10 @@ jobs:
             echo "Sem vaga. Proxima tentativa em 60s..."
             sleep 60
           done
-          echo "Turno de 55 min encerrado. O proximo run continua a caca automaticamente."
+          echo "Turno encerrado, disparando o proximo..."
+
+      - name: Rele - disparar o proximo turno
+        if: ${{ always() }}
+        run: gh workflow run sniper.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
