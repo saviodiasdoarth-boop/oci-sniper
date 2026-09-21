@@ -1,16 +1,18 @@
-name: OCI VM Sniper
+name: OCI VM Sniper v3
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 concurrency:
   group: oci-sniper
+  cancel-in-progress: true
 
 jobs:
   snipe:
     runs-on: ubuntu-latest
+    timeout-minutes: 59
     env:
       OCI_CLI_USER: ${{ secrets.OCI_USER_OCID }}
       OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
@@ -23,30 +25,35 @@ jobs:
           pipx install oci-cli
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Verificar e tentar criar a VM
+      - name: Cacar vaga por 55 minutos
         shell: bash
         run: |
           COMPARTMENT="$OCI_CLI_TENANCY"
-          EXISTING=$(oci compute instance list --compartment-id "$COMPARTMENT" --display-name "cs16-server" --query "data[?\"lifecycle-state\"!='TERMINATED'] | [0].id" --raw-output 2>/dev/null)
-          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-            echo "✅ A cs16-server JA EXISTE! Robô aposentado, missão cumprida."
-            exit 0
-          fi
-          AD=$(oci iam availability-domain list --compartment-id "$COMPARTMENT" --query 'data[0].name' --raw-output)
-          IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" --operating-system "Canonical Ubuntu" --operating-system-version "24.04 Minimal aarch64" --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
-          SUBNET=$(oci network subnet list --compartment-id "$COMPARTMENT" --display-name "subnet-20260920-1926" --query 'data[0].id' --raw-output)
-          echo "AD: $AD"
-          echo "Imagem: $IMAGE"
-          echo "Subnet: $SUBNET"
-          echo "Sem VM ainda. Tentando criar..."
-          oci compute instance launch \
-            --availability-domain "$AD" \
-            --compartment-id "$COMPARTMENT" \
-            --shape "VM.Standard.A1.Flex" \
-            --shape-config '{"ocpus":1,"memoryInGBs":6}' \
-            --image-id "$IMAGE" \
-            --subnet-id "$SUBNET" \
-            --assign-public-ip true \
-            --display-name "cs16-server" \
-            --ssh-authorized-keys-file <(echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDOJWViW2oMRadBPiKufT/DQVji2lRvcUu3en/Llxs72y6diBTp0Brnib4wVw7tf4QgK0aUlXDN3VgZdDFi8Vdqj50xU4QiZWzbYDg6vzSR7Q+X0H1e5auxMxSpO3S2FvbRJ7tvRFwaQkWEZ94B+pWOky8p6NkNnzd9Wrr0GAc1MMIuYD6iWfgLYXJmgmDWYvvLfc+lu38VrEglJM4qmZMXN72k8EEXQNbA0eoxUzYO9CT84OVJW+o1Ruc9AU53CzUEYrkCkTthskNnOXspaJdmGJ5+suZGXNVn+ZJHN2sfIB/rOLpUkv6Wlvb6MT1hBG2mG++9ezj8grmRaevFqc0D ssh-key-2026-09-20") \
-          && echo "🎉 SUCESSO! VM CRIADA! Vai lá conferir no console!"
+          END=$((SECONDS+3300))
+          COUNT=0
+          while [ $SECONDS -lt $END ]; do
+            COUNT=$((COUNT+1))
+            echo "=== Tentativa $COUNT - $(date -u) ==="
+            EXISTING=$(oci compute instance list --compartment-id "$COMPARTMENT" --display-name "cs16-server" --query "data[?\"lifecycle-state\"!='TERMINATED'] | [0].id" --raw-output 2>/dev/null)
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+              echo "✅ A cs16-server JA EXISTE! Missao cumprida!"
+              exit 0
+            fi
+            AD=$(oci iam availability-domain list --compartment-id "$COMPARTMENT" --query 'data[0].name' --raw-output)
+            IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" --operating-system "Canonical Ubuntu" --operating-system-version "24.04 Minimal aarch64" --shape VM.Standard.A1.Flex --sort-by TIMECREATED --sort-order DESC --query 'data[0].id' --raw-output)
+            SUBNET=$(oci network subnet list --compartment-id "$COMPARTMENT" --display-name "subnet-20260920-1926" --query 'data[0].id' --raw-output)
+            oci compute instance launch \
+              --availability-domain "$AD" \
+              --compartment-id "$COMPARTMENT" \
+              --shape "VM.Standard.A1.Flex" \
+              --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+              --image-id "$IMAGE" \
+              --subnet-id "$SUBNET" \
+              --assign-public-ip true \
+              --display-name "cs16-server" \
+              --ssh-authorized-keys-file <(echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDOJWViW2oMRadBPiKufT/DQVji2lRvcUu3en/Llxs72y6diBTp0Brnib4wVw7tf4QgK0aUlXDN3VgZdDFi8Vdqj50xU4QiZWzbYDg6vzSR7Q+X0H1e5auxMxSpO3S2FvbRJ7tvRFwaQkWEZ94B+pWOky8p6NkNnzd9Wrr0GAc1MMIuYD6iWfgLYXJmgmDWYvvLfc+lu38VrEglJM4qmZMXN72k8EEXQNbA0eoxUzYO9CT84OVJW+o1Ruc9AU53CzUEYrkCkTthskNnOXspaJdmGJ5+suZGXNVn+ZJHN2sfIB/rOLpUkv6Wlvb6MT1hBG2mG++9ezj8grmRaevFqc0D ssh-key-2026-09-20") \
+              && echo "🎉 SUCESSO! VM CRIADA!" && exit 0
+            echo "Sem vaga. Proxima tentativa em 60s..."
+            sleep 60
+          done
+          echo "Turno de 55 min encerrado. O proximo run continua a caca automaticamente."
