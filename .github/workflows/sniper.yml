@@ -5,6 +5,10 @@ on:
     - cron: "7 * * * *"
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: read
+
 concurrency:
   group: oci-sniper
   cancel-in-progress: false
@@ -62,4 +66,4 @@ jobs:
         if: ${{ always() }}
         run: gh workflow run sniper.yml --ref main
         env:
-          GH_TOKEN: ${{ secrets.PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
