@@ -67,6 +67,6 @@ jobs:
 
       - name: Rele - disparar o proximo turno (so se NAO achou)
         if: ${{ always() && steps.caca.outputs.done != 'yes' }}
-        run: gh workflow run sniper.yml --ref main
+        run: gh workflow run sniper.yml --ref main -R saviodiasdoarth-boop/oci-sniper
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
